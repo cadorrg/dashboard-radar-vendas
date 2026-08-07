@@ -145,6 +145,14 @@
   }
   .hour-tooltip .t-hora{ font-family: var(--font-display); font-weight:600; font-size: 13px; margin-bottom: 4px; }
   .hour-tooltip .t-line{ display:flex; align-items:center; gap: 6px; margin-top: 2px; }
+
+  .section-badge{
+    font-family: var(--font-mono); font-size: 11.5px; font-weight: 600;
+    padding: 3px 9px; border-radius: 12px; margin-left: 4px; white-space: nowrap;
+  }
+  .section-badge.up{ background: var(--ok-bg); color: var(--ok); }
+  .section-badge.down{ background: var(--danger-bg); color: var(--danger); }
+  .section-badge.flat{ background: rgba(245,243,236,0.1); color: rgba(245,243,236,0.6); }
 </style>
 </head>
 <body>
@@ -172,6 +180,11 @@
     <div class="state-msg">Carregando…</div>
   </div>
 
+  <div class="section-label" id="weekSectionLabel">Comparação com semana passada</div>
+  <div id="weekChartContent">
+    <div class="state-msg">Carregando…</div>
+  </div>
+
   <div class="board-footer">
     <span id="lastUpdated">—</span>
     <button id="refreshBtn" type="button">Atualizar agora</button>
@@ -181,7 +194,7 @@
 <script>
   // ======= CONFIGURAÇÃO =======
   // Cole aqui a Production URL do webhook "5b - Dashboard API - Radar de Vendas"
-  const WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/radar-vendas";
+  const WEBHOOK_URL = "https://SEU-N8N.exemplo.com.br/webhook/radar-vendas";
   const AUTO_REFRESH_MS = 120000; // 2 minutos
   // =============================
 
@@ -272,7 +285,7 @@
   }
 
   // ======= Gráfico hora a hora (hoje x ontem) =======
-  const HOUR_WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/radar-vendas-hora";
+  const HOUR_WEBHOOK_URL = "https://SEU-N8N.exemplo.com.br/webhook/radar-vendas-hora";
 
   function renderHourChart(data){
     const wrap = document.getElementById('hourChartContent');
@@ -367,6 +380,7 @@
   async function loadHourChart(){
     if (HOUR_WEBHOOK_URL.includes('SEU-N8N')){
       document.getElementById('hourChartContent').innerHTML = '<div class="state-msg">Aguardando configuração da URL do webhook (HOUR_WEBHOOK_URL).</div>';
+      document.getElementById('weekChartContent').innerHTML = '<div class="state-msg">Aguardando configuração da URL do webhook (HOUR_WEBHOOK_URL).</div>';
       return;
     }
     try{
@@ -374,9 +388,121 @@
       if (!res.ok) throw new Error('Resposta HTTP ' + res.status);
       const data = await res.json();
       renderHourChart(data);
+      renderWeekChart(data);
     }catch(err){
       document.getElementById('hourChartContent').innerHTML = `<div class="state-msg error">Não foi possível carregar o gráfico hora a hora.<br>(${err.message})</div>`;
+      document.getElementById('weekChartContent').innerHTML = `<div class="state-msg error">Não foi possível carregar a comparação semanal.<br>(${err.message})</div>`;
     }
+  }
+
+  function renderWeekChart(data){
+    const wrap = document.getElementById('weekChartContent');
+    const label = document.getElementById('weekSectionLabel');
+    const horas = data.horas || [];
+    const hoje = data.hoje || [];
+    const semana = data.semanaPassada || [];
+    const agoraHora = data.agoraHora ?? null;
+    const varPct = data.variacaoSemanaPassadaPct;
+
+    // badge de variação no título da seção
+    const oldBadge = document.getElementById('weekBadge');
+    if (oldBadge) oldBadge.remove();
+    if (varPct !== null && varPct !== undefined){
+      const cls = varPct > 0 ? 'up' : varPct < 0 ? 'down' : 'flat';
+      const arrow = varPct > 0 ? '▲' : varPct < 0 ? '▼' : '=';
+      const badge = document.createElement('span');
+      badge.id = 'weekBadge';
+      badge.className = 'section-badge ' + cls;
+      badge.textContent = `${arrow} ${Math.abs(varPct).toFixed(1)}%`;
+      label.insertBefore(badge, label.firstChild ? label.firstChild.nextSibling : null);
+      label.appendChild(badge);
+    }
+
+    if (horas.length === 0){
+      wrap.innerHTML = '<div class="state-msg">Sem dados ainda.</div>';
+      return;
+    }
+
+    const padL = 60, padR = 16, padT = 16, padB = 30;
+    const chartW = 900, chartH = 220;
+    const w = chartW + padL + padR;
+    const h = chartH + padT + padB;
+    const maxVal = Math.max(...hoje, ...semana, 10);
+    const stepX = chartW / (horas.length - 1);
+
+    const xAt = i => padL + i * stepX;
+    const yAt = v => padT + chartH - (v / maxVal) * chartH;
+
+    function pathFor(vals){
+      return vals.map((v,i) => `${i===0 ? 'M' : 'L'} ${xAt(i).toFixed(1)} ${yAt(v).toFixed(1)}`).join(' ');
+    }
+    function areaFor(vals){
+      const line = pathFor(vals);
+      return `${line} L ${xAt(vals.length-1).toFixed(1)} ${padT+chartH} L ${xAt(0).toFixed(1)} ${padT+chartH} Z`;
+    }
+
+    const gridLines = [0,0.25,0.5,0.75,1].map(f => {
+      const val = maxVal * f;
+      const y = yAt(val);
+      return `
+        <line x1="${padL}" y1="${y.toFixed(1)}" x2="${padL+chartW}" y2="${y.toFixed(1)}" stroke="rgba(245,243,236,0.08)" stroke-width="1"></line>
+        <text x="${padL-8}" y="${(y+4).toFixed(1)}" font-size="10" fill="rgba(245,243,236,0.4)" text-anchor="end">R$ ${val.toFixed(0)}</text>
+      `;
+    }).join('');
+
+    const xLabels = horas.map((label,i) => i % 2 === 0
+      ? `<text x="${xAt(i).toFixed(1)}" y="${padT+chartH+18}" font-size="9" fill="rgba(245,243,236,0.45)" text-anchor="middle">${label}</text>`
+      : '').join('');
+
+    const agoraLine = agoraHora !== null ? `
+      <line x1="${xAt(agoraHora).toFixed(1)}" y1="${padT}" x2="${xAt(agoraHora).toFixed(1)}" y2="${padT+chartH}" stroke="var(--danger)" stroke-width="1.5" stroke-dasharray="4,3"></line>
+      <text x="${xAt(agoraHora).toFixed(1)}" y="${padT-4}" font-size="10" fill="var(--danger)" text-anchor="middle" font-family="var(--font-mono)">agora</text>
+    ` : '';
+
+    const dots = (vals, color) => vals.map((v,i) => `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(v).toFixed(1)}" r="2.5" fill="${color}"></circle>`).join('');
+
+    const svg = `
+      <svg id="weekSvg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="max-width:100%; height:auto;">
+        ${gridLines}
+        <path d="${areaFor(hoje)}" fill="var(--ok)" opacity="0.15" stroke="none"></path>
+        <path d="${pathFor(semana)}" fill="none" stroke="var(--brass-bright)" stroke-width="2" stroke-dasharray="2,4"></path>
+        ${dots(semana, 'var(--brass-bright)')}
+        <path d="${pathFor(hoje)}" fill="none" stroke="var(--ok)" stroke-width="2.5"></path>
+        ${dots(hoje, 'var(--ok)')}
+        ${agoraLine}
+        ${xLabels}
+      </svg>
+    `;
+
+    wrap.innerHTML = `
+      <div class="hour-chart-wrap">
+        <div class="hour-chart-legend">
+          <span><span class="legend-swatch" style="background:var(--ok);"></span>Hoje</span>
+          <span><span class="legend-swatch" style="background:var(--brass-bright);"></span>Semana Passada (mesmo dia)</span>
+        </div>
+        ${svg}
+        <div class="hour-tooltip" id="weekTooltip"></div>
+      </div>
+    `;
+
+    const svgEl = document.getElementById('weekSvg');
+    const tooltip = document.getElementById('weekTooltip');
+    svgEl.addEventListener('mousemove', (e) => {
+      const rect = svgEl.getBoundingClientRect();
+      const scale = w / rect.width;
+      const xInSvg = (e.clientX - rect.left) * scale;
+      let idx = Math.round((xInSvg - padL) / stepX);
+      idx = Math.max(0, Math.min(horas.length - 1, idx));
+      tooltip.innerHTML = `
+        <div class="t-hora">${horas[idx]}</div>
+        <div class="t-line"><span class="legend-swatch" style="background:var(--ok);"></span>Hoje: ${(hoje[idx]||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+        <div class="t-line"><span class="legend-swatch" style="background:var(--brass-bright);"></span>Sem. passada: ${(semana[idx]||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+      `;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX - rect.left + 14) + 'px';
+      tooltip.style.top = (e.clientY - rect.top - 10) + 'px';
+    });
+    svgEl.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
   }
 
   async function loadDashboard(){
