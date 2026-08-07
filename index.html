@@ -185,6 +185,11 @@
     <div class="state-msg">Carregando…</div>
   </div>
 
+  <div class="section-label" id="monthSectionLabel">Comparação com mês passado</div>
+  <div id="monthChartContent">
+    <div class="state-msg">Carregando…</div>
+  </div>
+
   <div class="board-footer">
     <span id="lastUpdated">—</span>
     <button id="refreshBtn" type="button">Atualizar agora</button>
@@ -381,6 +386,7 @@
     if (HOUR_WEBHOOK_URL.includes('SEU-N8N')){
       document.getElementById('hourChartContent').innerHTML = '<div class="state-msg">Aguardando configuração da URL do webhook (HOUR_WEBHOOK_URL).</div>';
       document.getElementById('weekChartContent').innerHTML = '<div class="state-msg">Aguardando configuração da URL do webhook (HOUR_WEBHOOK_URL).</div>';
+      document.getElementById('monthChartContent').innerHTML = '<div class="state-msg">Aguardando configuração da URL do webhook (HOUR_WEBHOOK_URL).</div>';
       return;
     }
     try{
@@ -389,9 +395,11 @@
       const data = await res.json();
       renderHourChart(data);
       renderWeekChart(data);
+      renderMonthChart(data);
     }catch(err){
       document.getElementById('hourChartContent').innerHTML = `<div class="state-msg error">Não foi possível carregar o gráfico hora a hora.<br>(${err.message})</div>`;
       document.getElementById('weekChartContent').innerHTML = `<div class="state-msg error">Não foi possível carregar a comparação semanal.<br>(${err.message})</div>`;
+      document.getElementById('monthChartContent').innerHTML = `<div class="state-msg error">Não foi possível carregar a comparação mensal.<br>(${err.message})</div>`;
     }
   }
 
@@ -497,6 +505,114 @@
         <div class="t-hora">${horas[idx]}</div>
         <div class="t-line"><span class="legend-swatch" style="background:var(--ok);"></span>Hoje: ${(hoje[idx]||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
         <div class="t-line"><span class="legend-swatch" style="background:var(--brass-bright);"></span>Sem. passada: ${(semana[idx]||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+      `;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX - rect.left + 14) + 'px';
+      tooltip.style.top = (e.clientY - rect.top - 10) + 'px';
+    });
+    svgEl.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+  }
+
+  function renderMonthChart(data){
+    const wrap = document.getElementById('monthChartContent');
+    const label = document.getElementById('monthSectionLabel');
+    const horas = data.horas || [];
+    const hoje = data.hoje || [];
+    const mes = data.mesPassado || [];
+    const agoraHora = data.agoraHora ?? null;
+    const varPct = data.variacaoMesPassadoPct;
+
+    const oldBadge = document.getElementById('monthBadge');
+    if (oldBadge) oldBadge.remove();
+    if (varPct !== null && varPct !== undefined){
+      const cls = varPct > 0 ? 'up' : varPct < 0 ? 'down' : 'flat';
+      const arrow = varPct > 0 ? '▲' : varPct < 0 ? '▼' : '=';
+      const badge = document.createElement('span');
+      badge.id = 'monthBadge';
+      badge.className = 'section-badge ' + cls;
+      badge.textContent = `${arrow} ${Math.abs(varPct).toFixed(1)}%`;
+      label.appendChild(badge);
+    }
+
+    if (horas.length === 0){
+      wrap.innerHTML = '<div class="state-msg">Sem dados ainda.</div>';
+      return;
+    }
+
+    const padL = 60, padR = 16, padT = 16, padB = 30;
+    const chartW = 900, chartH = 220;
+    const w = chartW + padL + padR;
+    const h = chartH + padT + padB;
+    const maxVal = Math.max(...hoje, ...mes, 10);
+    const stepX = chartW / (horas.length - 1);
+
+    const xAt = i => padL + i * stepX;
+    const yAt = v => padT + chartH - (v / maxVal) * chartH;
+
+    function pathFor(vals){
+      return vals.map((v,i) => `${i===0 ? 'M' : 'L'} ${xAt(i).toFixed(1)} ${yAt(v).toFixed(1)}`).join(' ');
+    }
+    function areaFor(vals){
+      const line = pathFor(vals);
+      return `${line} L ${xAt(vals.length-1).toFixed(1)} ${padT+chartH} L ${xAt(0).toFixed(1)} ${padT+chartH} Z`;
+    }
+
+    const gridLines = [0,0.25,0.5,0.75,1].map(f => {
+      const val = maxVal * f;
+      const y = yAt(val);
+      return `
+        <line x1="${padL}" y1="${y.toFixed(1)}" x2="${padL+chartW}" y2="${y.toFixed(1)}" stroke="rgba(245,243,236,0.08)" stroke-width="1"></line>
+        <text x="${padL-8}" y="${(y+4).toFixed(1)}" font-size="10" fill="rgba(245,243,236,0.4)" text-anchor="end">R$ ${val.toFixed(0)}</text>
+      `;
+    }).join('');
+
+    const xLabels = horas.map((lbl,i) => i % 2 === 0
+      ? `<text x="${xAt(i).toFixed(1)}" y="${padT+chartH+18}" font-size="9" fill="rgba(245,243,236,0.45)" text-anchor="middle">${lbl}</text>`
+      : '').join('');
+
+    const agoraLine = agoraHora !== null ? `
+      <line x1="${xAt(agoraHora).toFixed(1)}" y1="${padT}" x2="${xAt(agoraHora).toFixed(1)}" y2="${padT+chartH}" stroke="var(--danger)" stroke-width="1.5" stroke-dasharray="4,3"></line>
+      <text x="${xAt(agoraHora).toFixed(1)}" y="${padT-4}" font-size="10" fill="var(--danger)" text-anchor="middle" font-family="var(--font-mono)">agora</text>
+    ` : '';
+
+    const dots = (vals, color) => vals.map((v,i) => `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(v).toFixed(1)}" r="2.5" fill="${color}"></circle>`).join('');
+
+    const svg = `
+      <svg id="monthSvg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="max-width:100%; height:auto;">
+        ${gridLines}
+        <path d="${areaFor(hoje)}" fill="var(--ok)" opacity="0.15" stroke="none"></path>
+        <path d="${pathFor(mes)}" fill="none" stroke="var(--brass-bright)" stroke-width="2" stroke-dasharray="2,4"></path>
+        ${dots(mes, 'var(--brass-bright)')}
+        <path d="${pathFor(hoje)}" fill="none" stroke="var(--ok)" stroke-width="2.5"></path>
+        ${dots(hoje, 'var(--ok)')}
+        ${agoraLine}
+        ${xLabels}
+      </svg>
+    `;
+
+    wrap.innerHTML = `
+      <div class="hour-chart-wrap">
+        <div class="hour-chart-legend">
+          <span><span class="legend-swatch" style="background:var(--ok);"></span>Hoje</span>
+          <span><span class="legend-swatch" style="background:var(--brass-bright);"></span>Mês Passado (mesmo dia)</span>
+        </div>
+        ${svg}
+        <div class="hour-tooltip" id="monthTooltip"></div>
+      </div>
+    `;
+
+    const svgEl = document.getElementById('monthSvg');
+    const tooltip = document.getElementById('monthTooltip');
+    svgEl.addEventListener('mousemove', (e) => {
+      const rect = svgEl.getBoundingClientRect();
+      const scale = w / rect.width;
+      const xInSvg = (e.clientX - rect.left) * scale;
+      let idx = Math.round((xInSvg - padL) / stepX);
+      idx = Math.max(0, Math.min(horas.length - 1, idx));
+      tooltip.innerHTML = `
+        <div class="t-hora">${horas[idx]}</div>
+        <div class="t-line"><span class="legend-swatch" style="background:var(--ok);"></span>Hoje: ${(hoje[idx]||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+        <div class="t-line"><span class="legend-swatch" style="background:var(--brass-bright);"></span>Mês passado: ${(mes[idx]||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
       `;
       tooltip.style.display = 'block';
       tooltip.style.left = (e.clientX - rect.left + 14) + 'px';
