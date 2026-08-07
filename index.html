@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Radar de Vendas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --board-bg:#1F2321;
+    --board-bg-alt:#262B28;
+    --board-line: rgba(245,243,236,0.08);
+    --plate:#F5F3EC;
+    --plate-muted:#E7E3D6;
+    --ink:#2A2A24;
+    --ink-soft:#726F62;
+    --brass:#B08D57;
+    --brass-bright:#D2AC77;
+    --ok:#4C6B54;
+    --ok-bg:#E7EEE6;
+    --warn:#A2732E;
+    --warn-bg:#F3E7D2;
+    --danger:#9A3A2C;
+    --danger-bg:#F2DFD9;
+    --radius: 3px;
+    --font-display:'Oswald', sans-serif;
+    --font-body:'IBM Plex Sans', sans-serif;
+    --font-mono:'IBM Plex Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--board-bg);
+    background-image:
+      radial-gradient(circle at 15% 10%, rgba(255,255,255,0.03), transparent 40%),
+      radial-gradient(circle at 85% 90%, rgba(255,255,255,0.025), transparent 45%);
+    font-family:var(--font-body);
+    color:var(--plate);
+    min-height:100vh;
+    padding: 28px 20px 60px;
+  }
+  .board{ max-width: 1080px; margin: 0 auto; }
+
+  .board-header{
+    display:flex; justify-content:space-between; align-items:flex-end;
+    border-bottom: 2px solid var(--brass);
+    padding-bottom: 16px; margin-bottom: 28px;
+    flex-wrap: wrap; gap: 12px;
+  }
+  .board-header h1{
+    font-family: var(--font-display); font-weight: 600;
+    font-size: clamp(24px, 4vw, 34px); letter-spacing: 0.05em;
+    text-transform: uppercase; margin: 0; color: var(--plate);
+  }
+  .board-header .sub{
+    font-family: var(--font-mono); font-size: 12px; color: var(--brass-bright);
+    letter-spacing: 0.05em; margin-top: 4px;
+  }
+  .board-header .clock{ font-family: var(--font-mono); font-size: 13px; color: rgba(245,243,236,0.6); text-align: right; }
+  .board-header .clock strong{ display:block; color: var(--plate); font-size: 14px; }
+
+  .section-label{
+    display:flex; align-items:center; gap: 10px; margin: 34px 0 14px;
+    font-family: var(--font-display); font-size: 13px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--brass-bright);
+  }
+  .section-label::after{ content:''; flex:1; height:1px; background: var(--board-line); }
+
+  .contas-grid{
+    display:grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;
+  }
+  .conta-plate{
+    background: var(--plate); border-radius: var(--radius);
+    padding: 16px 16px 14px;
+    box-shadow: 0 2px 0 rgba(0,0,0,0.25), inset 0 0 0 1px rgba(0,0,0,0.04);
+  }
+  .conta-plate .top-row{ display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 10px; }
+  .conta-plate .nome{
+    font-family: var(--font-display); font-size: 18px; font-weight: 600;
+    letter-spacing: 0.03em; color: var(--ink); text-transform: uppercase;
+  }
+  .status-light{ width: 10px; height:10px; border-radius: 50%; margin-top: 5px; flex-shrink:0; box-shadow: 0 0 0 3px rgba(0,0,0,0.05); }
+  .status-light.ok{ background: var(--ok); }
+  .status-light.warn{ background: var(--warn); }
+  .status-light.danger{ background: var(--danger); }
+
+  .conta-plate .faturamento{ font-family: var(--font-display); font-size: 26px; font-weight: 600; color: var(--ink); line-height:1; margin-bottom: 4px; }
+  .conta-plate .variacao{ font-family: var(--font-mono); font-size: 12.5px; margin-bottom: 12px; }
+  .variacao.up{ color: var(--ok); }
+  .variacao.down{ color: var(--danger); }
+  .variacao.flat{ color: var(--ink-soft); }
+
+  .detail-line{
+    display:flex; justify-content:space-between; font-size: 12.5px; color: var(--ink-soft);
+    padding: 4px 0; border-top: 1px solid rgba(0,0,0,0.06);
+  }
+  .detail-line span:last-child{ color: var(--ink); font-family: var(--font-mono); }
+
+  .hora-ref{ font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-soft); margin-top: 10px; }
+
+  .chart-wrap{
+    background: var(--board-bg-alt); border-radius: var(--radius);
+    padding: 18px 20px; overflow-x:auto;
+  }
+  .chart-wrap svg text{ font-family: var(--font-mono); }
+
+  .empty-alerts, .state-msg{
+    font-family: var(--font-mono); font-size: 13px; color: rgba(245,243,236,0.45); padding: 8px 2px;
+  }
+  .state-msg.error{ color: var(--danger-bg); }
+
+  .board-footer{
+    display:flex; justify-content:space-between; align-items:center;
+    margin-top: 32px; padding-top: 14px; border-top: 1px solid var(--board-line);
+    font-family: var(--font-mono); font-size: 12px; color: rgba(245,243,236,0.5);
+  }
+  .board-footer button{
+    background: var(--brass); color: var(--ink); border: none; padding: 8px 14px;
+    border-radius: var(--radius); font-family: var(--font-mono); font-size: 12px;
+    font-weight: 500; cursor: pointer;
+  }
+  .board-footer button:hover{ background: var(--brass-bright); }
+
+  .config-banner{
+    display:none; background: var(--warn-bg); color: var(--warn); border-radius: var(--radius);
+    padding: 12px 16px; font-size: 13px; margin-bottom: 20px; font-family: var(--font-mono);
+  }
+
+  .hour-chart-wrap{
+    background: var(--board-bg-alt); border-radius: var(--radius);
+    padding: 18px 20px 8px; position: relative;
+  }
+  .hour-chart-legend{
+    display:flex; gap: 18px; margin-bottom: 12px; font-family: var(--font-mono); font-size: 11.5px;
+    color: rgba(245,243,236,0.7);
+  }
+  .hour-chart-legend span{ display:flex; align-items:center; gap: 6px; }
+  .legend-swatch{ width: 14px; height: 3px; border-radius: 2px; display:inline-block; }
+  .hour-tooltip{
+    position: absolute; pointer-events: none; background: #14171587; background: rgba(20,23,21,0.95);
+    border: 1px solid var(--brass); border-radius: var(--radius);
+    padding: 8px 12px; font-family: var(--font-mono); font-size: 12px; color: var(--plate);
+    display:none; white-space: nowrap; z-index: 5;
+  }
+  .hour-tooltip .t-hora{ font-family: var(--font-display); font-weight:600; font-size: 13px; margin-bottom: 4px; }
+  .hour-tooltip .t-line{ display:flex; align-items:center; gap: 6px; margin-top: 2px; }
+</style>
+</head>
+<body>
+<div class="board">
+
+  <div class="board-header">
+    <div>
+      <h1>Radar de Vendas</h1>
+      <div class="sub">Mercado Livre &middot; hoje vs. mesmo horário ontem</div>
+    </div>
+    <div class="clock">
+      <strong id="clockTime">—</strong>
+      <span id="clockDate">—</span>
+    </div>
+  </div>
+
+  <div class="config-banner" id="configBanner">Configure a URL do webhook na constante WEBHOOK_URL, no final do arquivo.</div>
+
+  <div id="content">
+    <div class="state-msg">Carregando…</div>
+  </div>
+
+  <div class="section-label">Hoje x ontem, hora a hora</div>
+  <div id="hourChartContent">
+    <div class="state-msg">Carregando…</div>
+  </div>
+
+  <div class="board-footer">
+    <span id="lastUpdated">—</span>
+    <button id="refreshBtn" type="button">Atualizar agora</button>
+  </div>
+</div>
+
+<script>
+  // ======= CONFIGURAÇÃO =======
+  // Cole aqui a Production URL do webhook "5b - Dashboard API - Radar de Vendas"
+  const WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/radar-vendas";
+  const AUTO_REFRESH_MS = 120000; // 2 minutos
+  // =============================
+
+  const fmtMoney = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  function updateClock(){
+    const now = new Date();
+    document.getElementById('clockDate').textContent = now.toLocaleDateString('pt-BR', { weekday:'long', day:'2-digit', month:'long' });
+    document.getElementById('clockTime').textContent = now.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+  }
+  updateClock();
+  setInterval(updateClock, 30000);
+
+  function statusLightClass(varPct){
+    if (varPct === null || varPct === undefined) return 'ok';
+    if (varPct <= -15) return 'danger';
+    if (varPct < 0) return 'warn';
+    return 'ok';
+  }
+
+  function variacaoClass(varPct){
+    if (varPct === null || varPct === undefined) return 'flat';
+    if (varPct > 0) return 'up';
+    if (varPct < 0) return 'down';
+    return 'flat';
+  }
+
+  function renderContas(contas){
+    if (!contas || contas.length === 0){
+      return '<div class="state-msg">Nenhum snapshot registrado ainda. Aguarde a próxima execução do n8n.</div>';
+    }
+    // TOTAL sempre por último, contas individuais primeiro
+    const ordenado = [...contas].sort((a,b) => (a.conta === 'TOTAL') - (b.conta === 'TOTAL'));
+    return '<div class="contas-grid">' + ordenado.map(c => `
+      <div class="conta-plate">
+        <div class="top-row">
+          <div class="nome">${c.conta || '—'}</div>
+          <div class="status-light ${statusLightClass(c.variacao_faturamento_pct)}"></div>
+        </div>
+        <div class="faturamento">${fmtMoney(c.faturamento_hoje)}</div>
+        <div class="variacao ${variacaoClass(c.variacao_faturamento_pct)}">
+          ${c.variacao_faturamento_pct === null || c.variacao_faturamento_pct === undefined ? 'sem comparativo' : (c.variacao_faturamento_pct >= 0 ? '▲ ' : '▼ ') + Math.abs(c.variacao_faturamento_pct).toFixed(1) + '% vs. ontem'}
+        </div>
+        <div class="detail-line"><span>Pedidos hoje</span><span>${c.pedidos_hoje ?? 0}</span></div>
+        <div class="detail-line"><span>Faturamento ontem</span><span>${fmtMoney(c.faturamento_ontem)}</span></div>
+        <div class="detail-line"><span>Pedidos ontem</span><span>${c.pedidos_ontem ?? 0}</span></div>
+        <div class="hora-ref">Última leitura: ${c.hora_referencia || '—'}</div>
+      </div>
+    `).join('') + '</div>';
+  }
+
+  function renderChart(historico){
+    if (!historico || historico.length === 0){
+      return '<div class="empty-alerts">Ainda sem histórico suficiente pro gráfico.</div>';
+    }
+    const vals = historico.map(h => h.faturamento_hoje || 0);
+    const max = Math.max(...vals, 1);
+    const barW = 34;
+    const gap = 22;
+    const w = historico.length * (barW + gap) + 20;
+    const h = 160;
+
+    const bars = historico.map((pt, i) => {
+      const barH = (pt.faturamento_hoje / max) * 110;
+      const x = i * (barW + gap) + 12;
+      const y = 130 - barH;
+      const d = new Date(pt.data_snapshot);
+      const label = isNaN(d) ? '' : d.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }) + ' ' + d.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+      return `
+        <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(barH,2)}" rx="2" fill="var(--brass)" opacity="0.9"></rect>
+        <text x="${x + barW/2}" y="146" font-size="9" fill="rgba(245,243,236,0.5)" text-anchor="middle">${label}</text>
+      `;
+    }).join('');
+
+    return `<div class="chart-wrap"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${bars}</svg></div>`;
+  }
+
+  function render(data){
+    const html = `
+      <div class="section-label">Contas</div>
+      ${renderContas(data.contas)}
+
+      <div class="section-label">Faturamento por snapshot (últimos registros)</div>
+      ${renderChart(data.historico)}
+    `;
+    document.getElementById('content').innerHTML = html;
+    document.getElementById('lastUpdated').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
+  }
+
+  // ======= Gráfico hora a hora (hoje x ontem) =======
+  const HOUR_WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/radar-vendas";
+
+  function renderHourChart(data){
+    const wrap = document.getElementById('hourChartContent');
+    const horas = data.horas || [];
+    const hoje = data.hoje || [];
+    const ontem = data.ontem || [];
+    const agoraHora = data.agoraHora ?? null;
+    if (horas.length === 0){
+      wrap.innerHTML = '<div class="state-msg">Sem dados ainda.</div>';
+      return;
+    }
+
+    const padL = 54, padR = 16, padT = 16, padB = 30;
+    const chartW = 900, chartH = 220;
+    const w = chartW + padL + padR;
+    const h = chartH + padT + padB;
+    const maxVal = Math.max(...hoje, ...ontem, 10);
+    const stepX = chartW / (horas.length - 1);
+
+    const xAt = i => padL + i * stepX;
+    const yAt = v => padT + chartH - (v / maxVal) * chartH;
+
+    function pathFor(vals){
+      return vals.map((v,i) => `${i===0 ? 'M' : 'L'} ${xAt(i).toFixed(1)} ${yAt(v).toFixed(1)}`).join(' ');
+    }
+    function areaFor(vals){
+      const line = pathFor(vals);
+      return `${line} L ${xAt(vals.length-1).toFixed(1)} ${padT+chartH} L ${xAt(0).toFixed(1)} ${padT+chartH} Z`;
+    }
+
+    // até 5 linhas de grade horizontal
+    const gridLines = [0,0.25,0.5,0.75,1].map(f => {
+      const val = maxVal * f;
+      const y = yAt(val);
+      return `
+        <line x1="${padL}" y1="${y.toFixed(1)}" x2="${padL+chartW}" y2="${y.toFixed(1)}" stroke="rgba(245,243,236,0.08)" stroke-width="1"></line>
+        <text x="${padL-8}" y="${(y+4).toFixed(1)}" font-size="10" fill="rgba(245,243,236,0.4)" text-anchor="end">R$ ${val.toFixed(0)}</text>
+      `;
+    }).join('');
+
+    const xLabels = horas.map((label,i) => i % 2 === 0
+      ? `<text x="${xAt(i).toFixed(1)}" y="${padT+chartH+18}" font-size="9" fill="rgba(245,243,236,0.45)" text-anchor="middle">${label}</text>`
+      : '').join('');
+
+    const agoraLine = agoraHora !== null ? `
+      <line x1="${xAt(agoraHora).toFixed(1)}" y1="${padT}" x2="${xAt(agoraHora).toFixed(1)}" y2="${padT+chartH}" stroke="var(--danger)" stroke-width="1.5" stroke-dasharray="4,3"></line>
+      <text x="${xAt(agoraHora).toFixed(1)}" y="${padT-4}" font-size="10" fill="var(--danger)" text-anchor="middle" font-family="var(--font-mono)">agora</text>
+    ` : '';
+
+    const svg = `
+      <svg id="hourSvg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="max-width:100%; height:auto;">
+        ${gridLines}
+        <path d="${areaFor(hoje)}" fill="var(--ok)" opacity="0.15" stroke="none"></path>
+        <path d="${pathFor(ontem)}" fill="none" stroke="var(--brass-bright)" stroke-width="2" stroke-dasharray="5,4"></path>
+        <path d="${pathFor(hoje)}" fill="none" stroke="var(--ok)" stroke-width="2.5"></path>
+        ${agoraLine}
+        ${xLabels}
+      </svg>
+    `;
+
+    wrap.innerHTML = `
+      <div class="hour-chart-wrap">
+        <div class="hour-chart-legend">
+          <span><span class="legend-swatch" style="background:var(--ok);"></span>Hoje</span>
+          <span><span class="legend-swatch" style="background:var(--brass-bright); border-top:2px dashed var(--brass-bright); height:0;"></span>Ontem</span>
+        </div>
+        ${svg}
+        <div class="hour-tooltip" id="hourTooltip"></div>
+      </div>
+    `;
+
+    const svgEl = document.getElementById('hourSvg');
+    const tooltip = document.getElementById('hourTooltip');
+    svgEl.addEventListener('mousemove', (e) => {
+      const rect = svgEl.getBoundingClientRect();
+      const scale = w / rect.width;
+      const xInSvg = (e.clientX - rect.left) * scale;
+      let idx = Math.round((xInSvg - padL) / stepX);
+      idx = Math.max(0, Math.min(horas.length - 1, idx));
+      tooltip.innerHTML = `
+        <div class="t-hora">${horas[idx]}</div>
+        <div class="t-line"><span class="legend-swatch" style="background:var(--ok);"></span>Hoje: ${(hoje[idx]||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+        <div class="t-line"><span class="legend-swatch" style="background:var(--brass-bright);"></span>Ontem: ${(ontem[idx]||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+      `;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX - rect.left + 14) + 'px';
+      tooltip.style.top = (e.clientY - rect.top - 10) + 'px';
+    });
+    svgEl.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+  }
+
+  async function loadHourChart(){
+    if (HOUR_WEBHOOK_URL.includes('SEU-N8N')){
+      document.getElementById('hourChartContent').innerHTML = '<div class="state-msg">Aguardando configuração da URL do webhook (HOUR_WEBHOOK_URL).</div>';
+      return;
+    }
+    try{
+      const res = await fetch(HOUR_WEBHOOK_URL, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Resposta HTTP ' + res.status);
+      const data = await res.json();
+      renderHourChart(data);
+    }catch(err){
+      document.getElementById('hourChartContent').innerHTML = `<div class="state-msg error">Não foi possível carregar o gráfico hora a hora.<br>(${err.message})</div>`;
+    }
+  }
+
+  async function loadDashboard(){
+    if (WEBHOOK_URL.includes('SEU-N8N')){
+      document.getElementById('configBanner').style.display = 'block';
+      document.getElementById('content').innerHTML = '<div class="state-msg">Aguardando configuração da URL do webhook.</div>';
+    } else {
+      try{
+        const res = await fetch(WEBHOOK_URL, { cache: 'no-store' });
+        if (!res.ok) throw new Error('Resposta HTTP ' + res.status);
+        const data = await res.json();
+        render(data);
+      }catch(err){
+        document.getElementById('content').innerHTML = `<div class="state-msg error">Não foi possível carregar os dados. Verifique se o workflow está ativo no n8n.<br>(${err.message})</div>`;
+      }
+    }
+    await loadHourChart();
+  }
+
+  document.getElementById('refreshBtn').addEventListener('click', loadDashboard);
+  loadDashboard();
+  setInterval(loadDashboard, AUTO_REFRESH_MS);
+</script>
+
+</body>
+</html>
