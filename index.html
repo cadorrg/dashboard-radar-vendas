@@ -130,6 +130,18 @@
   .section-badge.up{ background: var(--ok-bg); color: var(--ok); }
   .section-badge.down{ background: var(--danger-bg); color: var(--danger); }
   .section-badge.flat{ background: rgba(245,243,236,0.1); color: rgba(245,243,236,0.6); }
+
+  .today-metric-row{
+    display:flex; justify-content:space-between; align-items:baseline;
+    padding: 10px 0; border-top: 1px solid rgba(0,0,0,0.06);
+  }
+  .today-metric-row:first-child{ border-top:none; }
+  .today-metric-row .label{ font-size: 13px; color: var(--ink-soft); }
+  .today-metric-row .value{ font-family: var(--font-mono); font-size: 16px; font-weight: 600; color: var(--ink); }
+  .progress-outer{ background: rgba(0,0,0,0.08); border-radius: 6px; height: 8px; overflow: hidden; margin-top: 14px; }
+  .progress-inner{ background: var(--brass); height: 100%; border-radius: 6px; }
+  .progress-label{ font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); margin-top: 6px; }
+  .forecast-note{ font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-soft); margin-top: 10px; }
 </style>
 </head>
 <body>
@@ -147,6 +159,9 @@
   </div>
 
   <div class="config-banner" id="configBanner">Configure a URL do webhook na constante WEBHOOK_URL, no final do arquivo.</div>
+
+  <div class="section-label">Como estão as vendas hoje?</div>
+  <div id="todayCardContent"><div class="state-msg">Carregando…</div></div>
 
   <div id="content"><div class="state-msg">Carregando…</div></div>
 
@@ -175,6 +190,7 @@
   const WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/radar-vendas";
   const HOUR_WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/radar-vendas-hora";
   const ANNUAL_WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/comparacao-anual";
+  const TODAY_WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/vendas-hoje";
   const AUTO_REFRESH_MS = 120000;
 
   const fmtMoney = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -430,6 +446,40 @@
     }
     await loadHourChart();
     await loadAnnualChart();
+    await loadTodayCard();
+  }
+
+  async function loadTodayCard(){
+    try{
+      const res = await fetch(TODAY_WEBHOOK_URL, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Resposta HTTP ' + res.status);
+      const data = await res.json();
+      renderTodayCard(data);
+    }catch(err){
+      document.getElementById('todayCardContent').innerHTML = `<div class="state-msg error">Não foi possível carregar. Verifique se o workflow 6d está ativo.<br>(${err.message})</div>`;
+    }
+  }
+
+  function renderTodayCard(data){
+    const wrap = document.getElementById('todayCardContent');
+    const varPct = data.variacaoPct;
+    const varHTML = (varPct === null || varPct === undefined)
+      ? '<span style="color:var(--ink-soft); font-size:12px;">sem comparativo</span>'
+      : `<span class="section-badge ${varPct >= 0 ? 'up' : 'down'}" style="margin-left:8px;">${varPct >= 0 ? '▲' : '▼'} ${Math.abs(varPct).toFixed(1)}%</span>`;
+    const pctDia = Math.round((data.fracaoDia || 0) * 100);
+
+    wrap.innerHTML = `
+      <div class="conta-plate" style="max-width:480px;">
+        <div class="today-metric-row"><span class="label">Total Vendido Hoje</span><span class="value">${fmtMoney(data.totalVendidoHoje)} ${varHTML}</span></div>
+        <div class="today-metric-row"><span class="label">Pedidos</span><span class="value">${data.pedidosHoje ?? 0}</span></div>
+        <div class="today-metric-row"><span class="label">Ticket Médio</span><span class="value">${data.ticketMedio !== null ? fmtMoney(data.ticketMedio) : '—'}</span></div>
+        <div class="today-metric-row"><span class="label">Projeção (extrapolação linear)</span><span class="value">${data.projecaoLinear !== null ? fmtMoney(data.projecaoLinear) : '—'}</span></div>
+        <div class="today-metric-row"><span class="label">Projeção Ponderada (com histórico)</span><span class="value">${data.projecaoAvancada !== null ? fmtMoney(data.projecaoAvancada) : '—'}</span></div>
+        <div class="progress-outer"><div class="progress-inner" style="width:${pctDia}%;"></div></div>
+        <div class="progress-label">${pctDia}% do dia decorrido</div>
+        <div class="forecast-note">Projeção ponderada = mistura entre a extrapolação de hoje e a média das últimas ${data.amostrasUsadas || 0} ${['domingos','segundas-feiras','terças-feiras','quartas-feiras','quintas-feiras','sextas-feiras','sábados'][data.diaSemana ?? 0]} — não é IA, é média histórica ponderada.</div>
+      </div>
+    `;
   }
 
   async function loadAnnualChart(){
