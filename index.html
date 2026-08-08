@@ -142,6 +142,22 @@
   .progress-inner{ background: var(--brass); height: 100%; border-radius: 6px; }
   .progress-label{ font-family: var(--font-mono); font-size: 11px; color: var(--ink-soft); margin-top: 6px; }
   .forecast-note{ font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-soft); margin-top: 10px; }
+
+  .tab-bar{
+    display:flex; gap: 4px; margin-bottom: 8px; border-bottom: 1px solid var(--board-line);
+    overflow-x:auto;
+  }
+  .tab-btn{
+    background:none; border:none; cursor:pointer;
+    font-family: var(--font-display); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: rgba(245,243,236,0.5); padding: 10px 18px; border-bottom: 2px solid transparent;
+    white-space: nowrap;
+  }
+  .tab-btn:hover{ color: var(--plate); }
+  .tab-btn.active{ color: var(--brass-bright); border-bottom-color: var(--brass); }
+  .tab-btn.disabled{ color: rgba(245,243,236,0.25); cursor: not-allowed; }
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
 </style>
 </head>
 <body>
@@ -159,6 +175,14 @@
   </div>
 
   <div class="config-banner" id="configBanner">Configure a URL do webhook na constante WEBHOOK_URL, no final do arquivo.</div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="vendas" type="button">Vendas</button>
+    <button class="tab-btn disabled" type="button" disabled title="Em breve">Estoque</button>
+    <button class="tab-btn disabled" type="button" disabled title="Em breve">Anúncios</button>
+  </div>
+
+  <div class="tab-panel active" id="tab-vendas">
 
   <div class="section-label">Como estão as vendas hoje?</div>
   <div id="todayCardContent"><div class="state-msg">Carregando…</div></div>
@@ -179,6 +203,8 @@
 
   <div class="section-label">Comparação parcial ano atual x ano passado</div>
   <div id="annualChartContent"><div class="state-msg">Carregando…</div></div>
+
+  </div>
 
   <div class="board-footer">
     <span id="lastUpdated">—</span>
@@ -569,6 +595,15 @@
         ${svg}
       </div>`;
   }
+
+  document.querySelectorAll('.tab-btn:not(.disabled)').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
 
   document.getElementById('refreshBtn').addEventListener('click', loadDashboard);
   loadDashboard();
