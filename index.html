@@ -158,6 +158,21 @@
   .tab-btn.disabled{ color: rgba(245,243,236,0.25); cursor: not-allowed; }
   .tab-panel{ display:none; }
   .tab-panel.active{ display:block; }
+
+  .subtab-bar{
+    display:flex; gap: 4px; margin: 18px 0 4px; overflow-x:auto;
+  }
+  .subtab-btn{
+    background: rgba(245,243,236,0.05); border: 1px solid transparent; cursor:pointer;
+    font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.04em;
+    color: rgba(245,243,236,0.55); padding: 7px 14px; border-radius: 14px;
+    white-space: nowrap;
+  }
+  .subtab-btn:hover{ color: var(--plate); }
+  .subtab-btn.active{ color: var(--ink); background: var(--brass-bright); }
+  .subtab-btn.disabled{ color: rgba(245,243,236,0.2); cursor: not-allowed; }
+  .subtab-panel{ display:none; }
+  .subtab-panel.active{ display:block; }
 </style>
 </head>
 <body>
@@ -184,6 +199,12 @@
 
   <div class="tab-panel active" id="tab-vendas">
 
+  <div class="subtab-bar">
+    <button class="subtab-btn active" data-subtab="visao-geral" type="button">Visão Geral das Vendas</button>
+  </div>
+
+  <div class="subtab-panel active" id="subtab-visao-geral">
+
   <div class="section-label">Como estão as vendas hoje?</div>
   <div id="todayCardContent"><div class="state-msg">Carregando…</div></div>
 
@@ -203,6 +224,8 @@
 
   <div class="section-label">Comparação parcial ano atual x ano passado</div>
   <div id="annualChartContent"><div class="state-msg">Carregando…</div></div>
+
+  </div>
 
   </div>
 
@@ -602,6 +625,16 @@
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
+
+  document.querySelectorAll('.subtab-btn:not(.disabled)').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const bar = btn.closest('.subtab-bar');
+      bar.querySelectorAll('.subtab-btn').forEach(b => b.classList.remove('active'));
+      bar.parentElement.querySelectorAll('.subtab-panel').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('subtab-' + btn.dataset.subtab).classList.add('active');
     });
   });
 
