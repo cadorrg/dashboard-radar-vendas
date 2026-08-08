@@ -173,6 +173,17 @@
   .subtab-btn.disabled{ color: rgba(245,243,236,0.2); cursor: not-allowed; }
   .subtab-panel{ display:none; }
   .subtab-panel.active{ display:block; }
+
+  .conta-selector{
+    display:flex; gap: 6px; margin-bottom: 4px; flex-wrap: wrap;
+  }
+  .conta-selector button{
+    background: var(--board-bg-alt); border: 1px solid var(--board-line); cursor:pointer;
+    font-family: var(--font-mono); font-size: 12px; color: rgba(245,243,236,0.6);
+    padding: 8px 16px; border-radius: 6px;
+  }
+  .conta-selector button:hover{ color: var(--plate); border-color: var(--brass); }
+  .conta-selector button.active{ background: var(--brass); color: var(--ink); border-color: var(--brass); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -201,6 +212,7 @@
 
   <div class="subtab-bar">
     <button class="subtab-btn active" data-subtab="visao-geral" type="button">Visão Geral das Vendas</button>
+    <button class="subtab-btn" data-subtab="radar-vendas" type="button">Radar de Vendas</button>
   </div>
 
   <div class="subtab-panel active" id="subtab-visao-geral">
@@ -209,6 +221,17 @@
   <div id="todayCardContent"><div class="state-msg">Carregando…</div></div>
 
   <div id="content"><div class="state-msg">Carregando…</div></div>
+
+  </div>
+
+  <div class="subtab-panel" id="subtab-radar-vendas">
+
+  <div class="section-label">Radar de Vendas — Hoje vs Ontem</div>
+  <div class="conta-selector" id="contaSelector">
+    <button class="active" data-conta="TOTAL" type="button">Todas as contas</button>
+    <button data-conta="Cadoshop" type="button">Cadoshop</button>
+    <button data-conta="CadoStore" type="button">CadoStore</button>
+  </div>
 
   <div class="section-label">Hoje x ontem, hora a hora</div>
   <div id="hourChartContent"><div class="state-msg">Carregando…</div></div>
@@ -383,15 +406,36 @@
     svgEl.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
   }
 
+  let hourRawData = null;
+  let selectedConta = 'TOTAL';
+
+  function getContaData(){
+    if (!hourRawData) return null;
+    const c = hourRawData.contas ? hourRawData.contas[selectedConta] : null;
+    if (!c) return null;
+    return { horas: hourRawData.horas, agoraHora: hourRawData.agoraHora, ...c };
+  }
+
+  function renderAllHourCharts(){
+    const data = getContaData();
+    if (!data){
+      ['hourChartContent','weekChartContent','monthChartContent','yearChartContent'].forEach(id => {
+        document.getElementById(id).innerHTML = '<div class="state-msg">Sem dados ainda.</div>';
+      });
+      return;
+    }
+    renderHourChart(data);
+    renderWeekChart(data);
+    renderMonthChart(data);
+    renderYearChart(data);
+  }
+
   async function loadHourChart(){
     try{
       const res = await fetch(HOUR_WEBHOOK_URL, { cache: 'no-store' });
       if (!res.ok) throw new Error('Resposta HTTP ' + res.status);
-      const data = await res.json();
-      renderHourChart(data);
-      renderWeekChart(data);
-      renderMonthChart(data);
-      renderYearChart(data);
+      hourRawData = await res.json();
+      renderAllHourCharts();
     }catch(err){
       document.getElementById('hourChartContent').innerHTML = `<div class="state-msg error">Não foi possível carregar o gráfico hora a hora.<br>(${err.message})</div>`;
       document.getElementById('weekChartContent').innerHTML = `<div class="state-msg error">Não foi possível carregar a comparação semanal.<br>(${err.message})</div>`;
@@ -399,6 +443,15 @@
       document.getElementById('yearChartContent').innerHTML = `<div class="state-msg error">Não foi possível carregar a comparação anual.<br>(${err.message})</div>`;
     }
   }
+
+  document.getElementById('contaSelector').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-conta]');
+    if (!btn) return;
+    document.querySelectorAll('#contaSelector button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedConta = btn.dataset.conta;
+    renderAllHourCharts();
+  });
 
   function genericTwoSeriesChart(containerId, sectionLabelId, badgeId, data, otherKey, otherLabel, varKey){
     const wrap = document.getElementById(containerId);
