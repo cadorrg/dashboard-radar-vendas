@@ -296,6 +296,7 @@
 
   // ======= Gráfico hora a hora (hoje x ontem) =======
   const HOUR_WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/radar-vendas-hora";
+  const ANNUAL_WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/comparacao-anual";
 
   function renderHourChart(data){
     const wrap = document.getElementById('hourChartContent');
@@ -752,6 +753,104 @@
       }
     }
     await loadHourChart();
+    await loadAnnualChart();
+  }
+
+  async function loadAnnualChart(){
+    if (ANNUAL_WEBHOOK_URL.includes('SEU-N8N')){
+      document.getElementById('annualChartContent').innerHTML = '<div class="state-msg">Aguardando configuração da URL do webhook (ANNUAL_WEBHOOK_URL).</div>';
+      return;
+    }
+    try{
+      const res = await fetch(ANNUAL_WEBHOOK_URL, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Resposta HTTP ' + res.status);
+      const data = await res.json();
+      renderAnnualChart(data);
+    }catch(err){
+      document.getElementById('annualChartContent').innerHTML = `<div class="state-msg error">Não foi possível carregar a comparação anual.<br>(${err.message})</div>`;
+    }
+  }
+
+  function renderAnnualChart(data){
+    const wrap = document.getElementById('annualChartContent');
+    const serieAtual = data.serieAtual || [];
+    const serieAnoPassado = data.serieAnoPassado || [];
+
+    if (serieAtual.length === 0 && serieAnoPassado.length === 0){
+      wrap.innerHTML = '<div class="state-msg">Sem histórico ainda. Rode o backfill (6a) pelo menos uma vez.</div>';
+      return;
+    }
+
+    function deltaHTML(pct){
+      if (pct === null || pct === undefined) return '<span style="color:rgba(245,243,236,0.4);">sem comparativo</span>';
+      const cls = pct >= 0 ? 'up' : 'down';
+      const arrow = pct >= 0 ? '▲' : '▼';
+      return `<span class="section-badge ${cls}" style="margin-left:8px;">${arrow} ${Math.abs(pct).toFixed(1)}%</span>`;
+    }
+
+    const metrics = `
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap:12px; margin-bottom:16px;">
+        <div class="conta-plate">
+          <div class="detail-line" style="border:none; padding:0 0 6px;"><span>Total Vendido ${data.anoAtual} (Parcial)</span></div>
+          <div class="faturamento">${(data.totalAtualParcial||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+          <div style="margin-top:4px;">${deltaHTML(data.variacaoParcialPct)}</div>
+        </div>
+        <div class="conta-plate">
+          <div class="detail-line" style="border:none; padding:0 0 6px;"><span>Total Faturamento ${data.anoPassado} (disponível)</span></div>
+          <div class="faturamento">${(data.totalPassadoCompleto||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</div>
+          <div style="margin-top:4px; font-size:11px; color:rgba(245,243,236,0.45); font-family:var(--font-mono);">${data.dataMaisAntigaDisponivel ? 'desde ' + data.dataMaisAntigaDisponivel.split('-').reverse().join('/') : 'sem dado ainda'} (limite da API do ML: 12 meses)</div>
+        </div>
+        <div class="conta-plate">
+          <div class="detail-line" style="border:none; padding:0 0 6px;"><span>Projeção ${data.anoAtual} (dia ${data.diaDoAnoAtual} × 365)</span></div>
+          <div class="faturamento">${data.projecaoAnoAtual !== null ? data.projecaoAnoAtual.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}) : '—'}</div>
+          <div style="margin-top:4px;">${deltaHTML(data.variacaoProjecaoPct)}</div>
+        </div>
+      </div>
+    `;
+
+    const maxLen = Math.max(serieAtual.length, serieAnoPassado.length, 1);
+    const maxVal = Math.max(...serieAtual, ...serieAnoPassado, 10);
+    const barW = 3, gap = 1;
+    const chartW = maxLen * (barW + gap);
+    const chartH = 160;
+    const padL = 60, padT = 10, padB = 20;
+    const w = chartW + padL + 16;
+    const h = chartH + padT + padB;
+
+    function bars(serie, color, opacity){
+      return serie.map((v,i) => {
+        const bh = Math.max((v / maxVal) * chartH, v > 0 ? 1 : 0);
+        const x = padL + i * (barW + gap);
+        const y = padT + chartH - bh;
+        return `<rect x="${x}" y="${y}" width="${barW}" height="${bh}" fill="${color}" opacity="${opacity}"></rect>`;
+      }).join('');
+    }
+
+    const gridLines = [0,0.5,1].map(f => {
+      const val = maxVal * f;
+      const y = padT + chartH - (val/maxVal)*chartH;
+      return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${padL+chartW}" y2="${y.toFixed(1)}" stroke="rgba(245,243,236,0.08)" stroke-width="1"></line>
+        <text x="${padL-8}" y="${(y+4).toFixed(1)}" font-size="9" fill="rgba(245,243,236,0.4)" text-anchor="end">R$ ${val.toFixed(0)}</text>`;
+    }).join('');
+
+    const svg = `
+      <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="max-width:100%; height:auto;">
+        ${gridLines}
+        ${bars(serieAnoPassado, 'var(--brass-bright)', 0.55)}
+        ${bars(serieAtual, 'var(--ok)', 0.85)}
+      </svg>
+    `;
+
+    wrap.innerHTML = `
+      ${metrics}
+      <div class="hour-chart-wrap">
+        <div class="hour-chart-legend">
+          <span><span class="legend-swatch" style="background:var(--brass-bright);"></span>${data.anoPassado} (disponível)</span>
+          <span><span class="legend-swatch" style="background:var(--ok);"></span>${data.anoAtual} (Parcial)</span>
+        </div>
+        ${svg}
+      </div>
+    `;
   }
 
   document.getElementById('refreshBtn').addEventListener('click', loadDashboard);
