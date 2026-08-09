@@ -210,6 +210,18 @@
   .sem-venda-badge{ background: var(--danger); color: var(--plate); font-size: 10.5px; padding: 3px 8px; border-radius: 10px; font-weight:600; }
   .var-neg{ color: var(--danger); }
   .var-pos{ color: var(--ok); }
+
+  .today-hero-grid{
+    display:grid; grid-template-columns: 1fr 1.6fr; gap: 16px; align-items:start;
+  }
+  .compare-grid-3{
+    display:grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 8px;
+  }
+  .compare-grid-3 .section-label{ margin: 0 0 10px; font-size: 11.5px; }
+  @media (max-width: 860px){
+    .today-hero-grid{ grid-template-columns: 1fr; }
+    .compare-grid-3{ grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
@@ -244,7 +256,25 @@
   <div class="subtab-panel active" id="subtab-visao-geral">
 
   <div class="section-label">Como estão as vendas hoje?</div>
-  <div id="todayCardContent"><div class="state-msg">Carregando…</div></div>
+  <div class="today-hero-grid">
+    <div id="todayCardContent"><div class="state-msg">Carregando…</div></div>
+    <div id="hourChartContent"><div class="state-msg">Carregando…</div></div>
+  </div>
+
+  <div class="compare-grid-3">
+    <div>
+      <div class="section-label" id="yearSectionLabel">Comparação com ano passado</div>
+      <div id="yearChartContent"><div class="state-msg">Carregando…</div></div>
+    </div>
+    <div>
+      <div class="section-label" id="monthSectionLabel">Comparação com mês passado</div>
+      <div id="monthChartContent"><div class="state-msg">Carregando…</div></div>
+    </div>
+    <div>
+      <div class="section-label" id="weekSectionLabel">Comparação com semana passada</div>
+      <div id="weekChartContent"><div class="state-msg">Carregando…</div></div>
+    </div>
+  </div>
 
   <div class="section-label">Como estão as vendas nesta semana?</div>
   <div id="weekCardContent"><div class="state-msg">Carregando…</div></div>
@@ -257,18 +287,6 @@
     <button data-conta="Cadoshop" type="button">Cadoshop</button>
     <button data-conta="CadoStore" type="button">CadoStore</button>
   </div>
-
-  <div class="section-label">Hoje x ontem, hora a hora</div>
-  <div id="hourChartContent"><div class="state-msg">Carregando…</div></div>
-
-  <div class="section-label" id="weekSectionLabel">Comparação com semana passada</div>
-  <div id="weekChartContent"><div class="state-msg">Carregando…</div></div>
-
-  <div class="section-label" id="monthSectionLabel">Comparação com mês passado</div>
-  <div id="monthChartContent"><div class="state-msg">Carregando…</div></div>
-
-  <div class="section-label" id="yearSectionLabel">Comparação com ano passado</div>
-  <div id="yearChartContent"><div class="state-msg">Carregando…</div></div>
 
   <div class="section-label">Comparação parcial ano atual x ano passado</div>
   <div id="annualChartContent"><div class="state-msg">Carregando…</div></div>
