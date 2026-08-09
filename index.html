@@ -413,12 +413,20 @@
     return `<div class="chart-wrap"><svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${bars}</svg></div>`;
   }
 
+  let contasRawData = null;
+
   function render(data){
+    contasRawData = data;
+    const contasFiltradas = selectedConta === 'TOTAL'
+      ? data.contas
+      : (data.contas || []).filter(c => c.conta === selectedConta);
+    const historico = (data.historicoPorConta && data.historicoPorConta[selectedConta]) || [];
+
     const html = `
       <div class="section-label">Contas</div>
-      ${renderContas(data.contas)}
+      ${renderContas(contasFiltradas)}
       <div class="section-label">Faturamento por snapshot (últimos registros)</div>
-      ${renderChart(data.historico)}
+      ${renderChart(historico)}
     `;
     document.getElementById('content').innerHTML = html;
     document.getElementById('lastUpdated').textContent = 'Atualizado às ' + new Date().toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' });
@@ -526,6 +534,8 @@
   document.getElementById('contaAplicarBtn').addEventListener('click', () => {
     selectedConta = document.getElementById('contaSelect').value;
     renderAllHourCharts();
+    renderTodayCardFiltered();
+    if (contasRawData) render(contasRawData);
   });
 
   function genericTwoSeriesChart(containerId, sectionLabelId, badgeId, data, otherKey, otherLabel, varKey){
@@ -628,15 +638,24 @@
     await loadWeekCard();
   }
 
+  let todayRawData = null;
+
   async function loadTodayCard(){
     try{
       const res = await fetch(TODAY_WEBHOOK_URL, { cache: 'no-store' });
       if (!res.ok) throw new Error('Resposta HTTP ' + res.status);
-      const data = await res.json();
-      renderTodayCard(data);
+      todayRawData = await res.json();
+      renderTodayCardFiltered();
     }catch(err){
       document.getElementById('todayCardContent').innerHTML = `<div class="state-msg error">Não foi possível carregar. Verifique se o workflow 6d está ativo.<br>(${err.message})</div>`;
     }
+  }
+
+  function renderTodayCardFiltered(){
+    if (!todayRawData || !todayRawData.contas) return;
+    const dataConta = todayRawData.contas[selectedConta];
+    if (!dataConta) return;
+    renderTodayCard({ ...dataConta, fracaoDia: todayRawData.fracaoDia, diaSemana: todayRawData.diaSemana });
   }
 
   function renderTodayCard(data){
