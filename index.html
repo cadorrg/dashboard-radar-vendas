@@ -860,8 +860,8 @@
           <span><span class="legend-swatch" style="background:var(--brass-bright);"></span>Ano Passado</span>
           <span><span class="legend-swatch" style="background:var(--ok);"></span>Ano Atual</span>
         </div>
-        <div style="overflow-x:auto;">
-          <svg id="weeklyAnnualSvg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="min-width:${w}px;">
+        <div>
+          <svg id="weeklyAnnualSvg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="max-width:100%; height:auto; display:block;">
             ${gridLines}
             ${bars}
           </svg>
