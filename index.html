@@ -532,7 +532,7 @@
     }
     if (horas.length === 0){ wrap.innerHTML = '<div class="state-msg">Sem dados ainda.</div>'; return; }
     const padL = 68, padR = 16, padT = 26, padB = 40;
-    const chartW = 900, chartH = 220;
+    const chartW = 520, chartH = 280;
     const w = chartW + padL + padR, h = chartH + padT + padB;
     const maxVal = Math.max(...hoje, ...other, 10);
     const stepX = chartW / (horas.length - 1);
