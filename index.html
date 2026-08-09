@@ -256,7 +256,6 @@
     </div>
   </div>
 
-  <div class="config-banner" id="configBanner">Configure a URL do webhook na constante WEBHOOK_URL, no final do arquivo.</div>
 
   <div class="tab-bar">
     <button class="tab-btn active" data-tab="vendas" type="button">Vendas</button>
@@ -306,8 +305,6 @@
 
   <div class="section-label">Como estão as vendas nesta semana?</div>
   <div id="weekCardContent"><div class="state-msg">Carregando…</div></div>
-
-  <div id="content"><div class="state-msg">Carregando…</div></div>
 
   <div class="section-label">Comparação parcial ano atual x ano passado</div>
   <div id="annualChartContent"><div class="state-msg">Carregando…</div></div>
@@ -536,7 +533,6 @@
     renderAllHourCharts();
     renderTodayCardFiltered();
     renderWeekCardFiltered();
-    if (contasRawData) render(contasRawData);
   });
 
   function genericTwoSeriesChart(containerId, sectionLabelId, badgeId, data, otherKey, otherLabel, varKey){
@@ -624,14 +620,6 @@
   function renderYearChart(data){ genericTwoSeriesChart('yearChartContent', 'yearSectionLabel', 'yearBadge', data, 'anoPassado', 'Ano Passado (mesmo dia)', 'variacaoAnoPassadoPct'); }
 
   async function loadDashboard(){
-    try{
-      const res = await fetch(WEBHOOK_URL, { cache: 'no-store' });
-      if (!res.ok) throw new Error('Resposta HTTP ' + res.status);
-      const data = await res.json();
-      render(data);
-    }catch(err){
-      document.getElementById('content').innerHTML = `<div class="state-msg error">Não foi possível carregar os dados. Verifique se o workflow está ativo no n8n.<br>(${err.message})</div>`;
-    }
     await loadHourChart();
     await loadAnnualChart();
     await loadTodayCard();
