@@ -246,6 +246,8 @@
   .abc-summary-card .titulo{ font-family: var(--font-display); font-weight:700; font-size: 15px; margin-bottom: 6px; }
   .abc-summary-card .sub{ font-family: var(--font-mono); font-size: 12px; color: var(--ink-soft); }
 
+  .visitas-legend-conv{ color: var(--brass-bright); }
+
   .today-hero-grid{
     display:grid; grid-template-columns: 1fr 1.6fr; gap: 16px; align-items:start;
   }
@@ -345,6 +347,14 @@
 
   <div id="produtosTableContent"><div class="state-msg">Carregando…</div></div>
 
+  <div class="section-label">Visitas e Conversão</div>
+  <div class="periodo-selector" id="visitasPeriodoSelector">
+    <button data-dias="14" type="button">Últimos 14 dias</button>
+    <button class="active" data-dias="30" type="button">Últimos 30 dias</button>
+    <button data-dias="60" type="button">Últimos 60 dias</button>
+  </div>
+  <div id="visitasChartContent"><div class="state-msg">Carregando…</div></div>
+
   </div>
 
   <div class="subtab-panel" id="subtab-curva-abc">
@@ -376,6 +386,7 @@
   const PRODUTOS_WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/produtos-variacao";
   const WEEK_WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/vendas-semana";
   const ABC_WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/curva-abc";
+  const VISITAS_WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/visitas-conversao";
   const AUTO_REFRESH_MS = 120000;
 
   const fmtMoney = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -571,6 +582,7 @@
     renderTodayCardFiltered();
     renderWeekCardFiltered();
     if (abcRawData) renderAbcTable(abcRawData);
+    if (visitasRawData) renderVisitasChart(visitasRawData);
   });
 
   function genericTwoSeriesChart(containerId, sectionLabelId, badgeId, data, otherKey, otherLabel, varKey){
@@ -664,7 +676,106 @@
     await loadProdutosTable();
     await loadWeekCard();
     await loadAbcTable();
+    await loadVisitasChart();
   }
+
+  let visitasDiasAtual = 30;
+  let visitasRawData = null;
+
+  async function loadVisitasChart(){
+    const wrap = document.getElementById('visitasChartContent');
+    wrap.innerHTML = '<div class="state-msg">Carregando…</div>';
+    try{
+      const url = VISITAS_WEBHOOK_URL + '?dias=' + encodeURIComponent(visitasDiasAtual);
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Resposta HTTP ' + res.status);
+      visitasRawData = await res.json();
+      renderVisitasChart(visitasRawData);
+    }catch(err){
+      wrap.innerHTML = `<div class="state-msg error">Não foi possível carregar visitas e conversão.<br>(${err.message})</div>`;
+    }
+  }
+
+  function renderVisitasChart(data){
+    const wrap = document.getElementById('visitasChartContent');
+    const serie = (data.contas && data.contas[selectedConta]) || [];
+
+    if (serie.length === 0){
+      wrap.innerHTML = '<div class="state-msg">Sem dados de visitas ainda.</div>';
+      return;
+    }
+
+    const padL = 60, padR = 60, padT = 20, padB = 40;
+    const chartH = 240;
+    const barW = Math.max(Math.min(600 / serie.length, 24), 4);
+    const gap = 4;
+    const chartW = serie.length * (barW + gap);
+    const w = chartW + padL + padR, h = chartH + padT + padB;
+
+    const maxVisitas = Math.max(...serie.map(s => s.visitas), 10);
+    const maxConv = Math.max(...serie.map(s => s.conversaoPct || 0), 5);
+
+    const yVisitas = v => padT + chartH - (v / maxVisitas) * chartH;
+    const yConv = v => padT + chartH - (v / maxConv) * chartH;
+    const xAt = i => padL + i * (barW + gap);
+
+    const bars = serie.map((s, i) => {
+      const bh = Math.max((s.visitas / maxVisitas) * chartH, s.visitas > 0 ? 1 : 0);
+      return `<rect x="${xAt(i).toFixed(1)}" y="${(padT+chartH-bh).toFixed(1)}" width="${barW}" height="${bh.toFixed(1)}" fill="var(--brass)" opacity="0.75" rx="2"></rect>`;
+    }).join('');
+
+    const linePoints = serie.map((s, i) => {
+      const cx = xAt(i) + barW/2;
+      const cy = s.conversaoPct !== null ? yConv(s.conversaoPct) : null;
+      return { cx, cy };
+    });
+    const validPoints = linePoints.filter(p => p.cy !== null);
+    const linePath = validPoints.map((p,i) => `${i===0?'M':'L'} ${p.cx.toFixed(1)} ${p.cy.toFixed(1)}`).join(' ');
+    const dots = validPoints.map(p => `<circle cx="${p.cx.toFixed(1)}" cy="${p.cy.toFixed(1)}" r="3" fill="var(--ok)"></circle>`).join('');
+
+    const gridLinesEsq = [0,0.5,1].map(f => {
+      const val = maxVisitas*f, y = padT + chartH - (val/maxVisitas)*chartH;
+      return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${padL+chartW}" y2="${y.toFixed(1)}" stroke="rgba(245,243,236,0.06)"></line>
+        <text x="${padL-8}" y="${(y+4).toFixed(1)}" font-size="11" fill="rgba(245,243,236,0.45)" text-anchor="end">${val.toFixed(0)}</text>`;
+    }).join('');
+    const gridLinesDir = [0,0.5,1].map(f => {
+      const val = maxConv*f, y = padT + chartH - (val/maxConv)*chartH;
+      return `<text x="${padL+chartW+10}" y="${(y+4).toFixed(1)}" font-size="11" fill="var(--brass-bright)" text-anchor="start">${val.toFixed(0)}%</text>`;
+    }).join('');
+
+    const step = Math.max(Math.ceil(serie.length / 12), 1);
+    const xLabels = serie.map((s, i) => i % step === 0
+      ? `<text x="${(xAt(i)+barW/2).toFixed(1)}" y="${padT+chartH+18}" font-size="10" fill="rgba(245,243,236,0.45)" text-anchor="middle">${s.data.slice(5).split('-').reverse().join('/')}</text>`
+      : '').join('');
+
+    wrap.innerHTML = `
+      <div class="hour-chart-wrap">
+        <div class="hour-chart-legend">
+          <span><span class="legend-swatch" style="background:var(--brass); height:8px; border-radius:2px;"></span>Visitas (eixo esquerdo)</span>
+          <span><span class="legend-swatch" style="background:var(--ok);"></span>Conversão % (eixo direito)</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="max-width:100%; height:auto;">
+            ${gridLinesEsq}
+            ${gridLinesDir}
+            ${bars}
+            <path d="${linePath}" fill="none" stroke="var(--ok)" stroke-width="2.5"></path>
+            ${dots}
+            ${xLabels}
+          </svg>
+        </div>
+      </div>
+    `;
+  }
+
+  document.getElementById('visitasPeriodoSelector').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-dias]');
+    if (!btn) return;
+    document.querySelectorAll('#visitasPeriodoSelector button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    visitasDiasAtual = parseInt(btn.dataset.dias);
+    loadVisitasChart();
+  });
 
   let abcDiasAtual = 90;
   let abcRawData = null;
