@@ -754,8 +754,8 @@
           <span><span class="legend-swatch" style="background:var(--brass); height:8px; border-radius:2px;"></span>Visitas (eixo esquerdo)</span>
           <span><span class="legend-swatch" style="background:var(--ok);"></span>Conversão % (eixo direito)</span>
         </div>
-        <div style="overflow-x:auto;">
-          <svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="max-width:100%; height:auto;">
+        <div style="overflow-x:auto; position:relative;">
+          <svg id="visitasSvg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="max-width:100%; height:auto;">
             ${gridLinesEsq}
             ${gridLinesDir}
             ${bars}
@@ -763,9 +763,32 @@
             ${dots}
             ${xLabels}
           </svg>
+          <div class="hour-tooltip" id="visitasTooltip"></div>
         </div>
       </div>
     `;
+
+    const svgEl = document.getElementById('visitasSvg');
+    const tooltip = document.getElementById('visitasTooltip');
+    svgEl.addEventListener('mousemove', (e) => {
+      const rect = svgEl.getBoundingClientRect();
+      const scale = w / rect.width;
+      const xInSvg = (e.clientX - rect.left) * scale;
+      let idx = Math.round((xInSvg - padL - barW/2) / (barW + gap));
+      idx = Math.max(0, Math.min(serie.length - 1, idx));
+      const s = serie[idx];
+      const dataFmt = s.data.split('-').reverse().join('/');
+      tooltip.innerHTML = `
+        <div class="t-hora">${dataFmt}</div>
+        <div class="t-line"><span class="legend-swatch" style="background:var(--brass);"></span>Visitas: ${s.visitas}</div>
+        <div class="t-line"><span class="legend-swatch" style="background:var(--ok);"></span>Conversão: ${s.conversaoPct !== null ? s.conversaoPct.toFixed(2) + '%' : '—'}</div>
+        <div class="t-line" style="color:rgba(245,243,236,0.5);">Pedidos: ${s.pedidos}</div>
+      `;
+      tooltip.style.display = 'block';
+      tooltip.style.left = (e.clientX - rect.left + 14) + 'px';
+      tooltip.style.top = (e.clientY - rect.top - 10) + 'px';
+    });
+    svgEl.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
   }
 
   document.getElementById('visitasPeriodoSelector').addEventListener('click', (e) => {
