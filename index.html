@@ -781,7 +781,7 @@
       tooltip.innerHTML = `
         <div class="t-hora">${dataFmt}</div>
         <div class="t-line"><span class="legend-swatch" style="background:var(--brass);"></span>Visitas: ${s.visitas}</div>
-        <div class="t-line"><span class="legend-swatch" style="background:var(--ok);"></span>Conversão: ${s.conversaoPct !== null ? Math.round(s.conversaoPct) + '%' : '—'}</div>
+        <div class="t-line"><span class="legend-swatch" style="background:var(--ok);"></span>Conversão: ${s.conversaoPct !== null ? s.conversaoPct.toFixed(1).replace('.', ',') + '%' : '—'}</div>
         <div class="t-line" style="color:rgba(245,243,236,0.5);">Pedidos: ${s.pedidos}</div>
       `;
       tooltip.style.display = 'block';
