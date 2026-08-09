@@ -112,7 +112,7 @@
     padding: 12px 16px; font-size: 13px; margin-bottom: 20px; font-family: var(--font-mono);
   }
   .hour-chart-wrap{ background: var(--board-bg-alt); border-radius: var(--radius); padding: 18px 20px 8px; position: relative; }
-  .hour-chart-legend{ display:flex; gap: 18px; margin-bottom: 12px; font-family: var(--font-mono); font-size: 11.5px; color: rgba(245,243,236,0.7); }
+  .hour-chart-legend{ display:flex; gap: 18px; margin-bottom: 12px; font-family: var(--font-mono); font-size: 13px; color: rgba(245,243,236,0.7); }
   .hour-chart-legend span{ display:flex; align-items:center; gap: 6px; }
   .legend-swatch{ width: 14px; height: 3px; border-radius: 2px; display:inline-block; }
   .hour-tooltip{
@@ -531,7 +531,7 @@
       }
     }
     if (horas.length === 0){ wrap.innerHTML = '<div class="state-msg">Sem dados ainda.</div>'; return; }
-    const padL = 60, padR = 16, padT = 16, padB = 30;
+    const padL = 68, padR = 16, padT = 26, padB = 40;
     const chartW = 900, chartH = 220;
     const w = chartW + padL + padR, h = chartH + padT + padB;
     const maxVal = Math.max(...hoje, ...other, 10);
@@ -543,13 +543,13 @@
     const gridLines = [0,0.25,0.5,0.75,1].map(f => {
       const val = maxVal * f, y = yAt(val);
       return `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${padL+chartW}" y2="${y.toFixed(1)}" stroke="rgba(245,243,236,0.08)" stroke-width="1"></line>
-        <text x="${padL-8}" y="${(y+4).toFixed(1)}" font-size="10" fill="rgba(245,243,236,0.4)" text-anchor="end">R$ ${val.toFixed(0)}</text>`;
+        <text x="${padL-8}" y="${(y+4).toFixed(1)}" font-size="16" fill="rgba(245,243,236,0.5)" text-anchor="end">R$ ${val.toFixed(0)}</text>`;
     }).join('');
-    const xLabels = horas.map((lbl,i) => i % 2 === 0
-      ? `<text x="${xAt(i).toFixed(1)}" y="${padT+chartH+18}" font-size="9" fill="rgba(245,243,236,0.45)" text-anchor="middle">${lbl}</text>` : '').join('');
+    const xLabels = horas.map((lbl,i) => i % 3 === 0
+      ? `<text x="${xAt(i).toFixed(1)}" y="${padT+chartH+22}" font-size="15" fill="rgba(245,243,236,0.5)" text-anchor="middle">${lbl}</text>` : '').join('');
     const agoraLine = agoraHora !== null ? `
       <line x1="${xAt(agoraHora).toFixed(1)}" y1="${padT}" x2="${xAt(agoraHora).toFixed(1)}" y2="${padT+chartH}" stroke="var(--danger)" stroke-width="1.5" stroke-dasharray="4,3"></line>
-      <text x="${xAt(agoraHora).toFixed(1)}" y="${padT-4}" font-size="10" fill="var(--danger)" text-anchor="middle" font-family="var(--font-mono)">agora</text>` : '';
+      <text x="${xAt(agoraHora).toFixed(1)}" y="${padT-6}" font-size="15" fill="var(--danger)" text-anchor="middle" font-family="var(--font-mono)">agora</text>` : '';
     const dots = (vals, color) => vals.map((v,i) => `<circle cx="${xAt(i).toFixed(1)}" cy="${yAt(v).toFixed(1)}" r="2.5" fill="${color}"></circle>`).join('');
     const svgId = containerId + 'Svg', tooltipId = containerId + 'Tooltip';
     const svg = `
