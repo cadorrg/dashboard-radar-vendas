@@ -229,6 +229,23 @@
   .var-neg{ color: var(--danger); }
   .var-pos{ color: var(--ok); }
 
+  .classe-badge{
+    font-family: var(--font-mono); font-weight: 700; font-size: 12px;
+    padding: 3px 10px; border-radius: 10px; display:inline-block;
+  }
+  .classe-A{ background: var(--ok-bg); color: var(--ok); }
+  .classe-B{ background: var(--warn-bg); color: var(--warn); }
+  .classe-C{ background: rgba(245,243,236,0.1); color: rgba(245,243,236,0.55); }
+
+  .abc-summary{
+    display:grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px;
+  }
+  .abc-summary-card{
+    background: var(--plate); border-radius: var(--radius); padding: 14px 16px;
+  }
+  .abc-summary-card .titulo{ font-family: var(--font-display); font-weight:700; font-size: 15px; margin-bottom: 6px; }
+  .abc-summary-card .sub{ font-family: var(--font-mono); font-size: 12px; color: var(--ink-soft); }
+
   .today-hero-grid{
     display:grid; grid-template-columns: 1fr 1.6fr; gap: 16px; align-items:start;
   }
@@ -268,6 +285,7 @@
   <div class="subtab-bar">
     <button class="subtab-btn active" data-subtab="visao-geral" type="button">Visão Geral das Vendas</button>
     <button class="subtab-btn" data-subtab="radar-vendas" type="button">Radar de Vendas</button>
+    <button class="subtab-btn" data-subtab="curva-abc" type="button">Curva ABC</button>
   </div>
 
   <div class="subtab-panel active" id="subtab-visao-geral">
@@ -309,6 +327,9 @@
   <div class="section-label">Comparação parcial ano atual x ano passado</div>
   <div id="annualChartContent"><div class="state-msg">Carregando…</div></div>
 
+  <div class="section-label">Comparação por Semana (Ano Atual x Ano Passado)</div>
+  <div id="weeklyAnnualChartContent"><div class="state-msg">Carregando…</div></div>
+
   </div>
 
   <div class="subtab-panel" id="subtab-radar-vendas">
@@ -326,6 +347,21 @@
 
   </div>
 
+  <div class="subtab-panel" id="subtab-curva-abc">
+
+  <div class="section-label">Curva ABC de Produtos</div>
+
+  <div class="periodo-selector" id="abcPeriodoSelector">
+    <button data-dias="30" type="button">Últimos 30 dias</button>
+    <button class="active" data-dias="90" type="button">Últimos 90 dias</button>
+    <button data-dias="180" type="button">Últimos 180 dias</button>
+  </div>
+
+  <div id="abcSummaryContent"></div>
+  <div id="abcTableContent"><div class="state-msg">Carregando…</div></div>
+
+  </div>
+
   <div class="board-footer">
     <span id="lastUpdated">—</span>
     <button id="refreshBtn" type="button">Atualizar agora</button>
@@ -339,6 +375,7 @@
   const TODAY_WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/vendas-hoje";
   const PRODUTOS_WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/produtos-variacao";
   const WEEK_WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/vendas-semana";
+  const ABC_WEBHOOK_URL = "https://n8n.coolify.cadoshop.com.br/webhook/curva-abc";
   const AUTO_REFRESH_MS = 120000;
 
   const fmtMoney = (v) => (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -533,6 +570,7 @@
     renderAllHourCharts();
     renderTodayCardFiltered();
     renderWeekCardFiltered();
+    if (abcRawData) renderAbcTable(abcRawData);
   });
 
   function genericTwoSeriesChart(containerId, sectionLabelId, badgeId, data, otherKey, otherLabel, varKey){
@@ -625,7 +663,92 @@
     await loadTodayCard();
     await loadProdutosTable();
     await loadWeekCard();
+    await loadAbcTable();
   }
+
+  let abcDiasAtual = 90;
+  let abcRawData = null;
+
+  async function loadAbcTable(){
+    const wrap = document.getElementById('abcTableContent');
+    wrap.innerHTML = '<div class="state-msg">Carregando…</div>';
+    try{
+      const url = ABC_WEBHOOK_URL + '?dias=' + encodeURIComponent(abcDiasAtual);
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error('Resposta HTTP ' + res.status);
+      abcRawData = await res.json();
+      renderAbcTable(abcRawData);
+    }catch(err){
+      wrap.innerHTML = `<div class="state-msg error">Não foi possível carregar a curva ABC.<br>(${err.message})</div>`;
+    }
+  }
+
+  function renderAbcTable(data){
+    const wrap = document.getElementById('abcTableContent');
+    const summaryWrap = document.getElementById('abcSummaryContent');
+    const produtos = (data.contas && data.contas[selectedConta]) || [];
+
+    if (produtos.length === 0){
+      wrap.innerHTML = '<div class="state-msg">Nenhum produto encontrado nesse período.</div>';
+      summaryWrap.innerHTML = '';
+      return;
+    }
+
+    const porClasse = { A: [], B: [], C: [] };
+    produtos.forEach(p => porClasse[p.classe].push(p));
+
+    const summaryHTML = ['A','B','C'].map(cl => {
+      const lista = porClasse[cl];
+      const fatClasse = lista.reduce((s,p) => s + p.faturamento, 0);
+      const pctFat = produtos.length > 0 ? (fatClasse / produtos.reduce((s,p)=>s+p.faturamento,0) * 100) : 0;
+      return `
+        <div class="abc-summary-card">
+          <div class="titulo"><span class="classe-badge classe-${cl}">${cl}</span></div>
+          <div class="sub">${lista.length} produtos · ${pctFat.toFixed(1)}% do faturamento</div>
+          <div class="sub">${fmtMoney(fatClasse)}</div>
+        </div>
+      `;
+    }).join('');
+    summaryWrap.innerHTML = `<div class="abc-summary">${summaryHTML}</div>`;
+
+    const rows = produtos.map(p => `
+      <tr>
+        <td class="titulo">${p.titulo}</td>
+        <td><span class="classe-badge classe-${p.classe}">${p.classe}</span></td>
+        <td>${fmtMoney(p.faturamento)}</td>
+        <td>${p.qty}</td>
+        <td>${p.pctDoTotal.toFixed(2)}%</td>
+        <td>${p.pctAcumulado.toFixed(1)}%</td>
+      </tr>
+    `).join('');
+
+    wrap.innerHTML = `
+      <div class="produtos-table-wrap">
+        <table class="produtos-table">
+          <thead>
+            <tr>
+              <th>Produto</th>
+              <th>Classe</th>
+              <th>Faturamento</th>
+              <th>Qtd</th>
+              <th>% do Total</th>
+              <th>% Acumulado</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  document.getElementById('abcPeriodoSelector').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-dias]');
+    if (!btn) return;
+    document.querySelectorAll('#abcPeriodoSelector button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    abcDiasAtual = parseInt(btn.dataset.dias);
+    loadAbcTable();
+  });
 
   let todayRawData = null;
 
@@ -675,9 +798,91 @@
       if (!res.ok) throw new Error('Resposta HTTP ' + res.status);
       const data = await res.json();
       renderAnnualChart(data);
+      renderWeeklyAnnualChart(data);
     }catch(err){
       document.getElementById('annualChartContent').innerHTML = `<div class="state-msg error">Não foi possível carregar a comparação anual.<br>(${err.message})</div>`;
+      document.getElementById('weeklyAnnualChartContent').innerHTML = `<div class="state-msg error">Não foi possível carregar a comparação semanal.<br>(${err.message})</div>`;
     }
+  }
+
+  function renderWeeklyAnnualChart(data){
+    const wrap = document.getElementById('weeklyAnnualChartContent');
+    const semAtual = data.semanalAtual || [];
+    const semPassado = data.semanalAnoPassado || [];
+    if (semAtual.length === 0 && semPassado.length === 0){
+      wrap.innerHTML = '<div class="state-msg">Sem histórico suficiente ainda.</div>';
+      return;
+    }
+
+    const totalSemanas = Math.max(semAtual.length, semPassado.length, 1);
+    const barW = 12, gap = 3, groupGap = 8;
+    const padL = 60, padT = 16, padB = 34;
+    const chartH = 220;
+    const groupW = barW*2 + gap;
+    const chartW = totalSemanas * (groupW + groupGap);
+    const w = chartW + padL + 16, h = chartH + padT + padB;
+
+    const maxVal = Math.max(...semAtual.map(s=>s.valor), ...semPassado.map(s=>s.valor), 10);
+    const yAt = v => padT + chartH - (v/maxVal)*chartH;
+
+    function fmtDDMM(dtStr){
+      if (!dtStr) return '';
+      const [y,m,d] = dtStr.split('-');
+      return `${d}/${m}/${y}`;
+    }
+
+    let bars = '';
+    for (let i = 0; i < totalSemanas; i++) {
+      const xGroup = padL + i * (groupW + groupGap);
+      const sp = semPassado[i], sa = semAtual[i];
+      if (sp){
+        const hP = Math.max((sp.valor/maxVal)*chartH, sp.valor>0?1:0);
+        bars += `<rect class="wk-bar" data-tip="Semana ${sp.semana} (${fmtDDMM(sp.inicio)} - ${fmtDDMM(sp.fim)})|Ano Passado: ${fmtMoney(sp.valor)}|Ano Atual: ${sa ? fmtMoney(sa.valor) : '—'}" x="${xGroup}" y="${yAt(sp.valor).toFixed(1)}" width="${barW}" height="${hP.toFixed(1)}" fill="var(--brass-bright)" opacity="0.85" rx="2"></rect>`;
+      }
+      if (sa){
+        const hA = Math.max((sa.valor/maxVal)*chartH, sa.valor>0?1:0);
+        bars += `<rect class="wk-bar" data-tip="Semana ${sa.semana} (${fmtDDMM(sa.inicio)} - ${fmtDDMM(sa.fim)})|Ano Passado: ${sp ? fmtMoney(sp.valor) : '—'}|Ano Atual: ${fmtMoney(sa.valor)}" x="${xGroup+barW+gap}" y="${yAt(sa.valor).toFixed(1)}" width="${barW}" height="${hA.toFixed(1)}" fill="var(--ok)" opacity="0.9" rx="2"></rect>`;
+      }
+      if (i % 4 === 0){
+        bars += `<text x="${xGroup+barW}" y="${padT+chartH+18}" font-size="10" fill="rgba(245,243,236,0.45)" text-anchor="middle">${i+1}</text>`;
+      }
+    }
+
+    const gridLines = [0,0.25,0.5,0.75,1].map(f => {
+      const val = maxVal*f, y = padT + chartH - (val/maxVal)*chartH;
+      return `<line x1="${padL-6}" y1="${y.toFixed(1)}" x2="${padL+chartW}" y2="${y.toFixed(1)}" stroke="rgba(245,243,236,0.08)"></line>
+        <text x="${padL-10}" y="${(y+4).toFixed(1)}" font-size="10" fill="rgba(245,243,236,0.4)" text-anchor="end">R$ ${val.toFixed(0)}</text>`;
+    }).join('');
+
+    wrap.innerHTML = `
+      <div class="hour-chart-wrap">
+        <div class="hour-chart-legend">
+          <span><span class="legend-swatch" style="background:var(--brass-bright);"></span>Ano Passado</span>
+          <span><span class="legend-swatch" style="background:var(--ok);"></span>Ano Atual</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <svg id="weeklyAnnualSvg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="min-width:${w}px;">
+            ${gridLines}
+            ${bars}
+          </svg>
+        </div>
+        <div class="hour-tooltip" id="weeklyAnnualTooltip"></div>
+      </div>
+    `;
+
+    const svgEl = document.getElementById('weeklyAnnualSvg');
+    const tooltip = document.getElementById('weeklyAnnualTooltip');
+    svgEl.querySelectorAll('.wk-bar').forEach(bar => {
+      bar.addEventListener('mousemove', (e) => {
+        const [linha1, linha2, linha3] = bar.dataset.tip.split('|');
+        const rect = svgEl.closest('.hour-chart-wrap').getBoundingClientRect();
+        tooltip.innerHTML = `<div class="t-hora">${linha1}</div><div class="t-line">${linha2}</div><div class="t-line">${linha3}</div>`;
+        tooltip.style.display = 'block';
+        tooltip.style.left = (e.clientX - rect.left + 14) + 'px';
+        tooltip.style.top = (e.clientY - rect.top - 10) + 'px';
+      });
+      bar.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+    });
   }
 
   function renderAnnualChart(data){
