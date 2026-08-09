@@ -535,6 +535,7 @@
     selectedConta = document.getElementById('contaSelect').value;
     renderAllHourCharts();
     renderTodayCardFiltered();
+    renderWeekCardFiltered();
     if (contasRawData) render(contasRawData);
   });
 
@@ -829,16 +830,30 @@
     `;
   }
 
+  let weekRawData = null;
+
   async function loadWeekCard(){
     const wrap = document.getElementById('weekCardContent');
     try{
       const res = await fetch(WEEK_WEBHOOK_URL, { cache: 'no-store' });
       if (!res.ok) throw new Error('Resposta HTTP ' + res.status);
-      const data = await res.json();
-      renderWeekCard(data);
+      weekRawData = await res.json();
+      renderWeekCardFiltered();
     }catch(err){
       wrap.innerHTML = `<div class="state-msg error">Não foi possível carregar. Verifique se o workflow 6f está ativo.<br>(${err.message})</div>`;
     }
+  }
+
+  function renderWeekCardFiltered(){
+    if (!weekRawData || !weekRawData.contas) return;
+    const dataConta = weekRawData.contas[selectedConta];
+    if (!dataConta) return;
+    renderWeekCard({
+      ...dataConta,
+      fracaoSemana: weekRawData.fracaoSemana,
+      periodoLabel: weekRawData.periodoLabel,
+      diasLabel: weekRawData.diasLabel
+    });
   }
 
   function renderWeekCard(data){
